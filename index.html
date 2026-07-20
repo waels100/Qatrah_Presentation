@@ -6897,17 +6897,33 @@ html.splash-open, body.splash-open{ overflow:hidden; }
 .dock-dot.active{ width:22px; }
 
 @media (max-width: 900px){
-  /* the phone must scroll: .main clips by default, so let the stage scroll */
+  /* ── phone scrolling ──
+     On desktop each .slide is its own scroll container. On a phone that
+     breaks: the slide stretches to its full content height, so it never
+     scrolls and the touch never reaches .stage either. Here the STAGE is
+     the single scroll container and slides just flow inside it.        */
+  html, body{ overflow: hidden; height: 100%; }
+  .app{ height: 100dvh; overflow: hidden; }
   .main{ overflow: visible !important; }
   .stage{
     overflow-y: auto !important;
     overflow-x: hidden !important;
     height: 100dvh;
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
+    /* deliberately NOT setting overscroll-behavior or touch-action here:
+       both have been observed to suppress momentum scrolling on iOS Safari
+       when combined with a fixed-height flex ancestor. */
   }
-  .slide{ padding: 52px 16px 124px !important; }   /* clears the progress bar + nav bar */
-  .slide.active{ justify-content:flex-start; height:auto; min-height:0; }
+  /* the slide must NOT be a scroller on mobile */
+  .slide{
+    overflow: visible !important;
+    padding: 52px 16px 124px !important;   /* clears progress bar + nav bar */
+  }
+  .slide.active{
+    justify-content:flex-start !important;
+    height:auto !important;
+    min-height:0 !important;
+  }
   .preso-mark{ display:none; }
   .cover-grid{ grid-template-columns: 1fr !important; gap: 22px !important; }
   .cvx{ max-width:340px; margin-inline:auto; }
@@ -8494,13 +8510,18 @@ html.splash-open, body.splash-open{ overflow:hidden; }
     });
   });
 
-  /* ---- swipe navigation (touch) ---- */
-  let tsx=0, tsy=0;
-  stage.addEventListener('touchstart', e=>{ tsx=e.touches[0].clientX; tsy=e.touches[0].clientY; }, {passive:true});
+  /* ---- swipe navigation (touch) ----
+     Must never steal a vertical drag: the gesture has to be clearly
+     horizontal (2x) and quick, otherwise it is the user scrolling.   */
+  let tsx=0, tsy=0, tst=0;
+  stage.addEventListener('touchstart', e=>{
+    tsx=e.touches[0].clientX; tsy=e.touches[0].clientY; tst=Date.now();
+  }, {passive:true});
   stage.addEventListener('touchend', e=>{
     const dx = e.changedTouches[0].clientX - tsx;
     const dy = e.changedTouches[0].clientY - tsy;
-    if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)){
+    const dt = Date.now() - tst;
+    if(Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 2 && dt < 700){
       // RTL: swipe left → next, swipe right → prev
       const nextBtn = document.getElementById('next');
       const prevBtn = document.getElementById('prev');
